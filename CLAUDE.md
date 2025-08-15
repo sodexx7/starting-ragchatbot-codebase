@@ -39,6 +39,24 @@ uv add --dev package-name
 uv lock --upgrade
 ```
 
+**Code quality and formatting:**
+
+```bash
+# Format code automatically
+./scripts/format.sh
+
+# Check code quality (formatting, linting, type checking)
+./scripts/quality.sh
+
+# Individual tools
+uv run black .                    # Format code
+uv run black --check --diff .     # Check formatting without changes
+uv run isort .                    # Sort imports
+uv run isort --check-only .       # Check import sorting
+uv run flake8 .                   # Lint code
+uv run mypy backend/ main.py      # Type check
+```
+
 **Environment setup:**
 
 ```bash
