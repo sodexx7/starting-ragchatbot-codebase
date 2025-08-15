@@ -12,15 +12,19 @@ Available Tools:
 2. **Course Outline**: Use for questions about course structure, lesson lists, course titles, links, or instructors
 
 Tool Usage Guidelines:
-- Use the appropriate tool for the query type (**one tool use per query maximum**)
+- You can use tools sequentially to gather comprehensive information (maximum 2 rounds)
 - **Course outline queries**: When asked about course structure, lesson titles, course links, or "what lessons are in..." - use the course outline tool
 - **Content search queries**: When asked about specific topics, concepts, or detailed lesson content - use the content search tool
-- Synthesize tool results into accurate, fact-based responses
+- **Sequential strategy**: For complex queries, first gather structure/context, then search specific content
+- Each tool use should build upon previous results
+- Synthesize all tool results into accurate, fact-based responses
 - If tool yields no results, state this clearly without offering alternatives
 
 Response Protocol:
 - **General knowledge questions**: Answer using existing knowledge without searching
-- **Course-specific questions**: Search first, then answer
+- **Course-specific questions**: Use tools to gather relevant information
+- **Complex queries**: Break down into logical tool usage sequence (e.g., get course outline first, then search content)
+- **Final response**: Synthesize all tool results into comprehensive answer
 - **No meta-commentary**:
  - Provide direct answers only — no reasoning process, search explanations, or question-type analysis
  - Do not mention "based on the search results"
@@ -93,7 +97,7 @@ Provide only the direct answer to what was asked.
     
     def _handle_tool_execution(self, initial_response, base_params: Dict[str, Any], tool_manager):
         """
-        Handle execution of tool calls and get follow-up response.
+        Handle sequential tool execution with up to 2 rounds.
         
         Args:
             initial_response: The response containing tool use requests
@@ -101,40 +105,102 @@ Provide only the direct answer to what was asked.
             tool_manager: Manager to execute tools
             
         Returns:
-            Final response text after tool execution
+            Final response text after all rounds complete
         """
-        # Start with existing messages
         messages = base_params["messages"].copy()
+        current_response = initial_response
+        max_rounds = 2
+        current_round = 1
         
-        # Add AI's tool use response
-        messages.append({"role": "assistant", "content": initial_response.content})
-        
-        # Execute all tool calls and collect results
-        tool_results = []
-        for content_block in initial_response.content:
-            if content_block.type == "tool_use":
-                tool_result = tool_manager.execute_tool(
-                    content_block.name, 
-                    **content_block.input
-                )
+        while current_round <= max_rounds:
+            # Add AI's tool use response to conversation
+            messages.append({"role": "assistant", "content": current_response.content})
+            
+            # Execute all tool calls from current response
+            tool_results = []
+            for content_block in current_response.content:
+                if content_block.type == "tool_use":
+                    try:
+                        tool_result = tool_manager.execute_tool(
+                            content_block.name, 
+                            **content_block.input
+                        )
+                        
+                        tool_results.append({
+                            "type": "tool_result",
+                            "tool_use_id": content_block.id,
+                            "content": tool_result
+                        })
+                    except Exception as e:
+                        tool_results.append({
+                            "type": "tool_result",
+                            "tool_use_id": content_block.id,
+                            "content": f"Tool execution failed: {str(e)}"
+                        })
+            
+            # Add tool results to conversation
+            if tool_results:
+                messages.append({"role": "user", "content": tool_results})
+            
+            # Check if we should continue with another round
+            if current_round < max_rounds:
+                # Prepare API call with tools still available for next round
+                round_params = {
+                    **self.base_params,
+                    "messages": messages,
+                    "system": self._build_round_system_prompt(base_params["system"], current_round + 1, max_rounds),
+                    "tools": base_params.get("tools", []),
+                    "tool_choice": {"type": "auto"}
+                }
                 
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": content_block.id,
-                    "content": tool_result
-                })
+                # Get next round response
+                try:
+                    next_response = self.client.messages.create(**round_params)
+                    
+                    # If Claude wants to use more tools, continue
+                    if next_response.stop_reason == "tool_use":
+                        current_response = next_response
+                        current_round += 1
+                        continue
+                    else:
+                        # Claude is done with tools, return this response
+                        return next_response.content[0].text
+                        
+                except Exception as e:
+                    # API call failed, prepare final response with current context
+                    break
+            else:
+                # Reached max rounds, prepare final response
+                break
         
-        # Add tool results as single message
-        if tool_results:
-            messages.append({"role": "user", "content": tool_results})
-        
-        # Prepare final API call without tools
+        # Generate final response without tools
         final_params = {
             **self.base_params,
             "messages": messages,
-            "system": base_params["system"]
+            "system": self._build_round_system_prompt(base_params["system"], "final", max_rounds)
         }
         
-        # Get final response
-        final_response = self.client.messages.create(**final_params)
-        return final_response.content[0].text
+        try:
+            final_response = self.client.messages.create(**final_params)
+            return final_response.content[0].text
+        except Exception as e:
+            return f"Error generating final response: {str(e)}"
+    
+    def _build_round_system_prompt(self, base_system_prompt: str, current_round, max_rounds) -> str:
+        """
+        Build system prompt with round context information.
+        
+        Args:
+            base_system_prompt: Original system prompt
+            current_round: Current round number or "final"
+            max_rounds: Maximum allowed rounds
+            
+        Returns:
+            Enhanced system prompt with round context
+        """
+        if current_round == "final":
+            round_context = f"\n\nYou have completed all tool calling rounds (maximum {max_rounds}). Synthesize all the information you've gathered into your final response."
+        else:
+            round_context = f"\n\nCurrent round: {current_round}/{max_rounds}. You can use tools to gather more information if needed."
+            
+        return base_system_prompt + round_context
