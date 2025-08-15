@@ -24,6 +24,24 @@
     --welcome-border: #2563eb;
 }
 
+/* Light Theme Variables */
+[data-theme="light"] {
+    --primary-color: #2563eb;
+    --primary-hover: #1d4ed8;
+    --background: #ffffff;
+    --surface: #f8fafc;
+    --surface-hover: #f1f5f9;
+    --text-primary: #1e293b;
+    --text-secondary: #64748b;
+    --border-color: #e2e8f0;
+    --user-message: #2563eb;
+    --assistant-message: #f8fafc;
+    --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    --focus-ring: rgba(37, 99, 235, 0.2);
+    --welcome-bg: #eff6ff;
+    --welcome-border: #2563eb;
+}
+
 /* Base Styles */
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
@@ -46,12 +64,24 @@ body {
     padding: 0;
 }
 
-/* Header - Hidden */
+/* Header - Visible with Toggle Button */
 header {
-    display: none;
+    display: block;
+    padding: 1rem 2rem;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--surface);
+    flex-shrink: 0;
 }
 
-header h1 {
+.header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.header-text h1 {
     font-size: 1.75rem;
     font-weight: 700;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -65,6 +95,68 @@ header h1 {
     font-size: 0.95rem;
     color: var(--text-secondary);
     margin-top: 0.5rem;
+}
+
+/* Toggle Button Styling */
+.toggle-button {
+    position: relative;
+    width: 48px;
+    height: 48px;
+    border: 1px solid var(--border-color);
+    border-radius: 24px;
+    background: var(--background);
+    color: var(--text-primary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
+}
+
+.toggle-button:hover {
+    border-color: var(--primary-color);
+    background: var(--surface);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15);
+}
+
+.toggle-button:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.toggle-button:active {
+    transform: translateY(0);
+}
+
+/* Toggle Icon Styling */
+.toggle-icon {
+    position: absolute;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Default state - show sun icon (dark theme active) */
+.sun-icon {
+    opacity: 1;
+    transform: rotate(0deg) scale(1);
+}
+
+.moon-icon {
+    opacity: 0;
+    transform: rotate(90deg) scale(0.8);
+}
+
+/* Light theme state - show moon icon */
+[data-theme="light"] .sun-icon {
+    opacity: 0;
+    transform: rotate(-90deg) scale(0.8);
+}
+
+[data-theme="light"] .moon-icon {
+    opacity: 1;
+    transform: rotate(0deg) scale(1);
 }
 
 /* Main Content Area with Sidebar */
@@ -728,10 +820,26 @@ details[open] .suggested-header::before {
     
     header {
         padding: 1rem;
+        display: block;
     }
     
-    header h1 {
+    .header-content {
+        flex-direction: column;
+        gap: 1rem;
+        align-items: flex-start;
+    }
+    
+    .header-controls {
+        align-self: flex-end;
+    }
+    
+    .header-text h1 {
         font-size: 1.5rem;
+    }
+    
+    .toggle-button {
+        width: 44px;
+        height: 44px;
     }
     
     .chat-messages {
